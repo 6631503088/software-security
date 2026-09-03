@@ -1,0 +1,52 @@
+name: Week 2 Security CI
+
+on:
+  push:
+    branches: [wk02]
+  pull_request:
+    branches: [wk02]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  semgrep:
+    name: SAST (Semgrep)
+    runs-on: ubuntu-latest
+    container:
+      image: semgrep/semgrep:latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Gate on SAST findings
+        run: |
+          # The course repo's root .semgrepignore excludes this intentionally
+          # vulnerable project. Copy it outside the checkout before scanning.
+          cp -R project/starter-app /tmp/notevault-scan
+          cd /tmp/notevault-scan
+          semgrep scan --config p/default --config p/owasp-top-ten --json . > /tmp/semgrep.json
+          python -c 'import json, sys; count = len(json.load(open("/tmp/semgrep.json"))["results"]); print(f"Semgrep findings: {count}"); sys.exit(1 if count else 0)'
+
+  trivy:
+    name: SCA and configuration (Trivy)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Gate on HIGH and CRITICAL dependency findings
+        uses: aquasecurity/trivy-action@0.24.0
+        with:
+          scan-type: fs
+          scan-ref: project/starter-app
+          scanners: vuln,misconfig
+          severity: HIGH,CRITICAL
+          exit-code: "1"
+
+  gitleaks:
+    name: Secret scanning (Gitleaks)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Gate on committed secrets
+        run: >-
+          docker run --rm -v "$PWD:/repo" zricethezav/gitleaks:latest
+          detect --no-git -s /repo/project/starter-app --exit-code 1 -v
