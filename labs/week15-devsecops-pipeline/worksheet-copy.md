@@ -167,8 +167,8 @@ curl -s http://localhost:5001/admin -H 'Authorization: alice-token'
 - **Goal:** Exploit a live fail-open vulnerability on the insecure service (`:8090`), contrast it with the hardened service (`:8091`), and extract the flag.
 - **Exploitation & Verification Commands:**
   ```bash
-  # 1. Red exploit against insecure service (:8090) with NO Authorization header
-  curl -s http://localhost:8090/admin
+  # 1. Red exploit against live CTF challenge container (:30000) with NO Authorization header
+  curl -s http://10.66.0.1:30000/admin
 
   # 2. Verification against secure service (:8091) with NO Authorization header
   curl -s -i http://localhost:8091/admin
@@ -178,8 +178,8 @@ curl -s http://localhost:5001/admin -H 'Authorization: alice-token'
   ```
 - **Observed Outputs:**
   ```text
-  # Target :8090 (Insecure - Fail Open)
-  {"panel":"UNLOCKED","secret":"FLAG{devsecops_fail_open_leaks_admin}"}
+  # Live CTF Challenge Target http://10.66.0.1:30000/admin (Insecure - Fail Open)
+  {"panel":"UNLOCKED","secret":"FLAG{devsecops_4f7d79861149ca26}"}
 
   # Target :8091 (Secure - Fail Closed)
   HTTP/1.1 403 FORBIDDEN
@@ -189,7 +189,7 @@ curl -s http://localhost:5001/admin -H 'Authorization: alice-token'
   {"error":"forbidden"}
 
   # Target :8091 (Secure - Authorized Admin)
-  {"panel":"UNLOCKED","secret":"FLAG{devsecops_fail_open_leaks_admin}"}
+  {"panel":"UNLOCKED","secret":"FLAG{devsecops_4f7d79861149ca26}"}
   ```
 - **Exact Vulnerable Line in `insecure_service.py`:**
   - Lines 46–49 in `insecure_service.py`:
@@ -200,8 +200,8 @@ curl -s http://localhost:5001/admin -H 'Authorization: alice-token'
         return jsonify(panel="UNLOCKED", secret=SECRET)
     ```
   - **Vulnerability Mechanism:** On line 42, `token = request.headers.get("Authorization", "")` returns an empty string `""` when the header is missing. Line 43 attempts a direct dictionary lookup `user = USERS[token]`, which immediately raises a `KeyError`. The broad `except Exception:` catches this `KeyError` and proceeds to return HTTP 200 with the administrative secret, turning a missing credential into an instant privilege escalation.
-- **Leaked Flag:**
-  `FLAG{devsecops_fail_open_leaks_admin}` *(Personal CTF flag extracted from Break the Build target on `ctf.zcr.ai`)*
+- **Leaked Personalized Flag:**
+  `FLAG{devsecops_4f7d79861149ca26}` *(Personalized flag extracted from live Break the Build container at `http://10.66.0.1:30000`)*
 - **Evidence Screenshot:**
   ![Task 1b Live Fail-Open Exploit Contrast](img/task_1b.png)
 
@@ -336,7 +336,7 @@ curl -s http://localhost:5001/admin -H 'Authorization: alice-token'
   isaacaung@Swans-MacBook-Air week15-devsecops-pipeline %
   ```
   Every screenshot captures authentic command execution, real process outputs, and unaltered terminal styling without artificial web styling or mock borders.
-- **Personalized flag:** `FLAG{devsecops_fail_open_leaks_admin}` *(Personal CTF flag extracted from Break the Build target on `ctf.zcr.ai`)*
+- **Personalized flag:** `FLAG{devsecops_4f7d79861149ca26}` *(Extracted directly from live Break the Build challenge container at `http://10.66.0.1:30000`)*
 - **Explain in your own words:**
   1. **What did you do, and why did the vulnerability work?**
      - I targeted the `/admin` endpoint on the insecure service (`:8090`) with an unauthenticated HTTP GET request. The application retrieved the `Authorization` header, which evaluated to an empty string because no header was supplied. The code then performed a direct dictionary key lookup (`USERS[token]`), which threw a Python `KeyError`. Because the endpoint wrapped the lookup in a generic `try...except Exception:` block that caught the error and unconditionally executed `return jsonify(panel="UNLOCKED", secret=SECRET)`, the server caught its own runtime error and granted full administrative access. The vulnerability succeeded because the application treated an exceptional condition as an authorization grant rather than an authorization failure.
@@ -436,3 +436,4 @@ When a user requests the `/admin` page, the application attempts to find their i
   ```
 - **Verified Result:**
   - The generated code uses `.get()` for safe dictionary access, returns HTTP 403 on all unauthorized branches, emits structured security logs without printing the secret token, logs `type(exc).__name__` inside the broad exception handler, and successfully blocked unauthenticated curl attempts while granting access only to Alice's valid admin token.
+
